@@ -47,6 +47,7 @@ la base de datos a mano: se crea sola en el primer paso de carga.
 ## Uso por línea de comandos
 
 ```powershell
+# 0. Sitúate en la raíz del proyecto.
 # 1. Precios de carburantes (automático, vía API)
 python scripts\obtener_datos_carburantes.py
 
@@ -68,7 +69,8 @@ propio archivo).
 ## Uso con el panel de control (frontend)
 
 Alternativa visual a los comandos anteriores, con salida en vivo y sin
-necesidad de escribir nada en la terminal:
+necesidad de escribir nada en la terminal (aparte de la ejecución del script
+del frontend):
 
 ```powershell
 python frontend\app.py

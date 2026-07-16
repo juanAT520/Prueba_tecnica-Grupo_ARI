@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Grupo ARI · Panel de control del pipeline</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<h1>Grupo ARI — Panel de control</h1>
+<p class="subtitle">Ejecuta el pipeline de datos paso a paso y observa el resultado en tiempo real.</p>
+
+<!-- Indicador de pasos -->
+<div class="pasos" id="pasos">
+  <div class="paso" data-paso="1"><span class="numero">1</span><span>Carburantes</span></div>
+  <div class="paso" data-paso="2"><span class="numero">2</span><span>Matriculaciones</span></div>
+  <div class="paso" data-paso="3"><span class="numero">3</span><span>Transformar</span></div>
+  <div class="paso" data-paso="4"><span class="numero">4</span><span>Base de datos</span></div>
+</div>
+
+<p id="siguiente-paso" class="siguiente">Siguiente paso sugerido: <strong>1. Extraer precios de carburantes</strong></p>
+
+<div class="panel">
+
+  <!-- Paso 1 -->
+  <div class="bloque">
+    <h2>1. Precios de carburantes</h2>
+    <p>Descarga y filtra los precios de gasolineras de Canarias desde la API del Ministerio.</p>
+    <button onclick="ejecutarPaso('carburantes', 1)">Ejecutar extracción</button>
+  </div>
+
+  <!-- Paso 2 -->
+  <div class="bloque">
+    <h2>2. Matriculaciones DGT</h2>
+    <p>Selecciona los ZIP mensuales que hayas descargado del portal de la DGT.</p>
+    <input type="file" id="input-zips" accept=".zip" multiple hidden>
+    <button onclick="document.getElementById('input-zips').click()">Seleccionar ZIP descargados</button>
+    <ul id="lista-zips"></ul>
+    <button id="btn-descomprimir" onclick="descomprimirTodos()" disabled>Descomprimir e inspeccionar</button>
+  </div>
+
+  <!-- Paso 3 -->
+  <div class="bloque">
+    <h2>3. Transformar matriculaciones</h2>
+    <p>Une todos los meses descomprimidos, filtra y limpia los datos.</p>
+    <button onclick="ejecutarPaso('transformar', 3)">Ejecutar transformación</button>
+  </div>
+
+  <!-- Paso 4 -->
+  <div class="bloque">
+    <h2>4. Cargar a base de datos</h2>
+    <p>Crea el esquema (si no existe) y carga ambas fuentes en PostgreSQL.</p>
+    <button onclick="ejecutarPaso('cargar', 4)">Ejecutar carga</button>
+  </div>
+
+</div>
+
+<h2>Salida en vivo</h2>
+<pre id="log">Esperando a que ejecutes un paso...</pre>
+
+<script src="/static/script.js"></script>
+</body>
+</html>

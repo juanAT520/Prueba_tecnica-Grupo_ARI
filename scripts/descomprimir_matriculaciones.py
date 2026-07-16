@@ -1,16 +1,17 @@
 """
-inspect_matriculaciones.py
+descomprimir_matriculaciones.py
 ---------------------------
-Descomprime el ZIP de "Microdatos de Matriculaciones de Vehículos" descargado
-manualmente desde la web de la DGT / datos.gob.es, y muestra un resumen
-(columnas, tipos, primeras filas) para poder diseñar el script de
-transformación (Parte 2).
+En este archivo se descomprime el ZIP de "Microdatos de Matriculaciones de Vehículos" descargado
+manualmente desde la web de la DGT 
+(https://www.dgt.es/menusecundario/dgt-en-cifras/matraba-listados/matriculaciones-automoviles-mensual.html),
+y muestra un resumen (columnas, tipos, primeras filas).
 
 Uso (Windows PowerShell), tras colocar el ZIP descargado en data/raw/:
-    python scripts\\inspect_matriculaciones.py data\\raw\\NOMBRE_DEL_FICHERO.zip
+    python scripts\\descomprimir_matriculaciones.py data\\raw\\NOMBRE_DEL_FICHERO.zip
 """
 
-import sys
+"""Módulo que usaré para comprobar el número de argumentos que entra para una ejecución de powershell"""
+import sys 
 import zipfile
 from pathlib import Path
 
@@ -35,6 +36,10 @@ def descomprimir(zip_path: Path) -> list[Path]:
 
 
 def inspeccionar(ficheros: list[Path]):
+    """
+    Función que recibe una lista de direcciones de archivos, comprueba su extensión
+    y tiene en cuenta los que busca para hacer una comprobación entre ellos.
+    """
     for f in ficheros:
         if f.suffix.lower() not in (".csv", ".txt"):
             continue
@@ -43,7 +48,7 @@ def inspeccionar(ficheros: list[Path]):
         print(f"Fichero: {f.name}")
         print(f"{'='*70}")
 
-        # Los microdatos de DGT suelen venir separados por ';' y en latin-1
+        "Los microdatos de DGT suelen venir separados por ';' y en latin-1"
         try:
             df = pd.read_csv(f, sep=";", encoding="latin-1", nrows=1000, low_memory=False)
         except Exception as e:
@@ -63,10 +68,12 @@ def inspeccionar(ficheros: list[Path]):
 
 
 def main():
+    "Si se encuentra menos de dos argumentos avisa al usuario de que falta el .zip"
     if len(sys.argv) < 2:
-        print("Uso: python scripts\\inspect_matriculaciones.py <ruta_al_zip>")
+        print("Falta el .zip: python scripts\\descomprimir_matriculaciones.py <ruta_al_zip>")
         sys.exit(1)
 
+    "Si el .zip indicado no existe avisa al usuario."
     zip_path = Path(sys.argv[1])
     if not zip_path.exists():
         print(f"[ERROR] No existe el fichero: {zip_path}")

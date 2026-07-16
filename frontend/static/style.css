@@ -1,0 +1,108 @@
+:root {
+  --azul: #1a5276;
+  --verde: #1e8449;
+  --gris-claro: #f4f4f4;
+  --gris-borde: #d0d0d0;
+  --rojo: #c0392b;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: "Segoe UI", Arial, sans-serif;
+  max-width: 900px;
+  margin: 30px auto;
+  padding: 0 20px;
+  color: #222;
+}
+
+h1 { margin-bottom: 4px; }
+.subtitle { color: #555; margin-top: 0; }
+
+/* Indicador de pasos */
+.pasos {
+  display: flex;
+  gap: 10px;
+  margin: 20px 0;
+}
+.paso {
+  flex: 1;
+  text-align: center;
+  padding: 10px 6px;
+  border: 2px solid var(--gris-borde);
+  border-radius: 8px;
+  background: var(--gris-claro);
+  font-size: 14px;
+  color: #777;
+}
+.paso .numero {
+  display: block;
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+.paso.activo {
+  border-color: var(--azul);
+  background: #eaf2f8;
+  color: var(--azul);
+}
+.paso.hecho {
+  border-color: var(--verde);
+  background: #eafaf1;
+  color: var(--verde);
+}
+
+.siguiente {
+  background: #eaf2f8;
+  border-left: 4px solid var(--azul);
+  padding: 10px 14px;
+  border-radius: 4px;
+}
+
+/* Bloques de cada paso */
+.panel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.bloque {
+  border: 1px solid var(--gris-borde);
+  border-radius: 8px;
+  padding: 16px;
+}
+.bloque h2 { margin-top: 0; font-size: 16px; }
+.bloque p { color: #555; font-size: 14px; }
+
+button {
+  background: var(--azul);
+  color: white;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+button:hover:not(:disabled) { opacity: 0.9; }
+button:disabled { background: #aaa; cursor: not-allowed; }
+
+#lista-zips {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0;
+  font-size: 13px;
+  color: #333;
+}
+#lista-zips li::before { content: "📦 "; }
+
+/* Panel de salida en vivo, estilo terminal */
+#log {
+  background: #1e1e1e;
+  color: #d4d4d4;
+  padding: 14px;
+  border-radius: 8px;
+  height: 260px;
+  overflow-y: auto;
+  font-family: "Consolas", monospace;
+  font-size: 13px;
+  white-space: pre-wrap;
+}

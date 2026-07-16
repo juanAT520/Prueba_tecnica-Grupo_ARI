@@ -1,80 +1,69 @@
 """
-load_to_db.py
+cargar_a_postgre.py
 ---------------
-Carga los CSV procesados (carburantes y matriculaciones) al modelo
-relacional en PostgreSQL definido en sql/01_create_schema.sql.
+Carga los CSV procesados (gasolineras y matriculaciones) al modelo
+relacional en PostgreSQL definido en sql/01_create_schema.sql
 
 Pasos:
-    1. Ejecuta el script de creación de esquema (DROP + CREATE de todas
-       las tablas).
-    2. Construye las dimensiones (provincia, municipio, tiempo, estación).
+    1. Crea las tablas si no existen.
+    2. Construye las dimensiones (provincia, municipio, tabla de fechas, estaciones de servicio).
     3. Carga las tablas de hechos (matriculaciones, precios carburante).
 
 Requisitos previos:
-    - PostgreSQL instalado y en marcha, con la base de datos creada
-      (ver README.md, sección PARTE 2).
+    - PostgreSQL instalado y en marcha.
     - Fichero .env configurado con las credenciales de conexión.
     - Haber ejecutado extract_carburantes.py y transform_matriculaciones.py.
-
-Uso (Windows PowerShell):
-    python scripts\\load_to_db.py
 """
 
-import os
+import os #En este caso se está usando para leer las variables de entorno.
 from datetime import date, timedelta
 from pathlib import Path
 
 import pandas as pd
-import psycopg2
-from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
-from dotenv import load_dotenv
-from sqlalchemy import create_engine, text
+import psycopg2 #Driver para la conexión con la base de datos.
+from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT #Necesario para crear la base de datos desde python.
+from dotenv import load_dotenv #Necesario para leer el archivo .env
+from sqlalchemy import create_engine, text #Se usa para las instrucciones ETL de la base de datos.
 
 from db_utils import (
     COD_DGT_A_INE,
     PROVINCIAS,
-    municipio_carburantes_a_clave_canonica,
+    normalizar_municipio_carburantes,
     normaliza_municipio,
 )
 
 load_dotenv()
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-RAW_DIR = PROJECT_ROOT / "data" / "raw"
-PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
-SQL_DIR = PROJECT_ROOT / "sql"
+DATOS_RAW = PROJECT_ROOT / "data" / "raw"
+DATOS_PROCESADOS = PROJECT_ROOT / "data" / "processed"
+RUTA_SQL = PROJECT_ROOT / "sql"
 
-MATRICULACIONES_CSV = PROCESSED_DIR / "matriculaciones_canarias_2026.csv"
+MATRICULACIONES_CSV = DATOS_PROCESADOS / "matriculaciones_canarias_2026.csv"
 
 
 def encontrar_csv_carburantes() -> Path:
     """
-    Busca el CSV de carburantes más reciente. extract_carburantes.py lo
+    Busca el CSV de carburantes más reciente. obtener_datos_carburantes.py lo
     guarda en data/raw/ con la fecha de extracción en el nombre
     (carburantes_canarias_YYYYMMDD.csv); si además lo has copiado a
     data/processed/, se prioriza esa copia.
     """
-    candidatos = sorted(PROCESSED_DIR.glob("carburantes_canarias_*.csv")) or sorted(
-        RAW_DIR.glob("carburantes_canarias_*.csv")
+    csv_carburantes = sorted(DATOS_PROCESADOS.glob("carburantes_canarias_*.csv")) or sorted(
+        DATOS_RAW.glob("carburantes_canarias_*.csv")
     )
-    if not candidatos:
+    if not csv_carburantes:
         raise FileNotFoundError(
             "No se encontró ningún carburantes_canarias_*.csv en data/raw ni data/processed. "
             "Ejecuta scripts/extract_carburantes.py primero."
         )
-    return candidatos[-1]  # el más reciente por orden alfabético (fecha en el nombre)
+    return csv_carburantes[-1]  # Devuelve el archivo de carburantes más nuevo.
 
 
-def ensure_database_exists():
+def comprobar_base_de_datos():
     """
     Comprueba si la base de datos configurada en .env (DB_NAME) existe en el
-    servidor PostgreSQL; si no, la crea. Así el usuario no tiene que abrir
-    psql/pgAdmin manualmente para el "CREATE DATABASE" — solo necesita tener
-    PostgreSQL instalado y en marcha, con el usuario/contraseña del .env.
-
-    Nota: CREATE DATABASE no puede ejecutarse dentro de una transacción en
-    PostgreSQL, por eso se usa una conexión psycopg2 en modo autocommit en
-    vez de SQLAlchemy para este paso concreto.
+    servidor Postgre. En caso de no estar, la crea.
     """
     host = os.getenv("DB_HOST", "localhost")
     port = os.getenv("DB_PORT", "5432")
@@ -82,8 +71,10 @@ def ensure_database_exists():
     user = os.getenv("DB_USER", "postgres")
     password = os.getenv("DB_PASSWORD", "")
 
-    # Nos conectamos a la base "postgres" (siempre existe) para poder
-    # comprobar/crear la base de datos del proyecto.
+    """
+    Nos conectamos a la base "postgres" para poder
+    comprobar/crear la base de datos del proyecto.
+    """
     conn = psycopg2.connect(host=host, port=port, dbname="postgres", user=user, password=password)
     conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
     try:
@@ -93,9 +84,6 @@ def ensure_database_exists():
             if existe:
                 print(f"[INFO] La base de datos '{dbname}' ya existe.")
             else:
-                # No se puede usar parámetros (%s) en CREATE DATABASE; el
-                # nombre viene de nuestro propio .env, no de un usuario final,
-                # así que el riesgo de inyección SQL aquí es controlado.
                 cur.execute(f'CREATE DATABASE "{dbname}"')
                 print(f"[OK] Base de datos '{dbname}' creada automáticamente.")
     finally:
@@ -103,6 +91,7 @@ def ensure_database_exists():
 
 
 def get_engine():
+    """Crea el objeto de la conexión a la base de datos para usarse siempre que sea necesario."""
     engine_name = os.getenv("DB_ENGINE", "postgresql")
     host = os.getenv("DB_HOST", "localhost")
     port = os.getenv("DB_PORT", "5432")
@@ -115,7 +104,8 @@ def get_engine():
 
 
 def ejecutar_schema(engine):
-    sql_path = SQL_DIR / "01_create_schema.sql"
+    """ Ejecuta el script con las tablas """
+    sql_path = RUTA_SQL / "01_create_schema.sql"
     print(f"[INFO] Ejecutando esquema: {sql_path}")
     sql_text = sql_path.read_text(encoding="utf-8")
 
@@ -136,12 +126,12 @@ def cargar_csvs():
             f"No se encuentra {MATRICULACIONES_CSV}. Ejecuta transform_matriculaciones.py primero."
         )
 
-    carb = pd.read_csv(carburantes_csv)
-    mat = pd.read_csv(MATRICULACIONES_CSV)
-    return carb, mat
-
+    datos_carburantes = pd.read_csv(carburantes_csv)
+    datos_matriculaciones = pd.read_csv(MATRICULACIONES_CSV)
+    return datos_carburantes, datos_matriculaciones
 
 def construir_dim_provincia(engine):
+    """ Rellena la tabla con las provincias """
     df = pd.DataFrame(
         [
             {"cod_provincia": cod, "cod_provincia_dgt": info["cod_provincia_dgt"], "nombre_provincia": info["nombre_provincia"]}
@@ -153,7 +143,7 @@ def construir_dim_provincia(engine):
 
 
 def construir_dim_municipio_y_alias(engine, carb: pd.DataFrame, mat: pd.DataFrame):
-    # --- Base canónica: municipios de matriculaciones (tienen código INE real) ---
+    """ Añade todo el contenido de la tabla 'dim_municipios_alias' """
     base = (
         mat[["COD_MUNICIPIO_INE_VEH", "MUNICIPIO", "COD_PROVINCIA_MAT"]]
         .drop_duplicates()
@@ -170,8 +160,7 @@ def construir_dim_municipio_y_alias(engine, carb: pd.DataFrame, mat: pd.DataFram
     base["cod_provincia"] = base["cod_provincia_dgt"].map(COD_DGT_A_INE)
     base = base.drop(columns=["cod_provincia_dgt"])
 
-    # Puede haber duplicados por nombre normalizado repetido en distinta
-    # provincia (raro, pero nos quedamos con el primero de forma determinista)
+    # En caso de haber un alias de municipio duplicado, se escoje únicamente el primero
     base = base.drop_duplicates(subset=["nombre_municipio_normalizado"])
 
     dim_municipio = base.reset_index(drop=True)
@@ -180,12 +169,11 @@ def construir_dim_municipio_y_alias(engine, carb: pd.DataFrame, mat: pd.DataFram
     dim_municipio.to_sql("dim_municipio", engine, if_exists="append", index=False)
     print(f"[OK] dim_municipio: {len(dim_municipio)} filas")
 
-    # --- Tabla de alias / auditoría ---
     mapa_clave_a_id = dict(zip(dim_municipio["nombre_municipio_normalizado"], dim_municipio["municipio_id"]))
 
     alias_rows = []
 
-    # Alias desde matriculaciones (nombre crudo = nombre normalizado, trivial pero se deja documentado)
+    # Almacenar los alias de la tabla de municipios
     for _, row in dim_municipio.iterrows():
         alias_rows.append(
             {
@@ -195,11 +183,11 @@ def construir_dim_municipio_y_alias(engine, carb: pd.DataFrame, mat: pd.DataFram
             }
         )
 
-    # Alias desde carburantes (usa la función de mapeo con normalización + diccionario de alias)
+    # Almacenar los alias de la tabla de carburantes
     municipios_carb = carb["municipio"].drop_duplicates()
     sin_match = []
     for nombre_crudo in municipios_carb:
-        clave = municipio_carburantes_a_clave_canonica(nombre_crudo)
+        clave = normalizar_municipio_carburantes(nombre_crudo)
         municipio_id = mapa_clave_a_id.get(clave)
         if municipio_id is None:
             sin_match.append(nombre_crudo)
@@ -220,6 +208,7 @@ def construir_dim_municipio_y_alias(engine, carb: pd.DataFrame, mat: pd.DataFram
 
 
 def construir_dim_tiempo(engine, fechas: pd.Series):
+    """ Añade todo el contenido de la tabla 'dim_tiempo' (La tabla calendario) """
     fechas_validas = pd.to_datetime(fechas.dropna().unique())
     if len(fechas_validas) == 0:
         return
@@ -243,9 +232,10 @@ def construir_dim_tiempo(engine, fechas: pd.Series):
 
 
 def construir_dim_estacion(engine, carb: pd.DataFrame, mapa_clave_a_id: dict):
+    """ Añade todo el contenido de la tabla 'dim_estacion' """
     df = carb.copy()
     df["municipio_id"] = df["municipio"].apply(
-        lambda x: mapa_clave_a_id.get(municipio_carburantes_a_clave_canonica(x))
+        lambda x: mapa_clave_a_id.get(normalizar_municipio_carburantes(x))
     )
 
     dim_estacion = df.rename(
@@ -270,6 +260,7 @@ def construir_dim_estacion(engine, carb: pd.DataFrame, mapa_clave_a_id: dict):
 
 
 def cargar_fact_matriculaciones(engine, mat: pd.DataFrame, mapa_clave_a_id: dict):
+    """ Añade todo el contenido de la tabla 'fact_matriculaciones' """
     df = mat.copy()
     df["municipio_norm"] = df["MUNICIPIO"].apply(normaliza_municipio)
     df["municipio_id"] = df["municipio_norm"].map(mapa_clave_a_id)
@@ -299,9 +290,10 @@ def cargar_fact_matriculaciones(engine, mat: pd.DataFrame, mapa_clave_a_id: dict
 
 
 def cargar_fact_precios_carburante(engine, carb: pd.DataFrame, mapa_clave_a_id: dict):
+    """ Añade todo el contenido de la tabla 'fact_precios_carburantes' """
     df = carb.copy()
     df["municipio_id"] = df["municipio"].apply(
-        lambda x: mapa_clave_a_id.get(municipio_carburantes_a_clave_canonica(x))
+        lambda x: mapa_clave_a_id.get(normalizar_municipio_carburantes(x))
     )
     df["cod_provincia"] = df["IDProvincia"].astype(str)
 
@@ -327,7 +319,7 @@ def cargar_fact_precios_carburante(engine, carb: pd.DataFrame, mapa_clave_a_id: 
 
 
 def main():
-    ensure_database_exists()
+    comprobar_base_de_datos()
 
     engine = get_engine()
 

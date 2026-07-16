@@ -1,12 +1,11 @@
 -- =====================================================================
 -- Grupo ARI - Prueba Técnica Analista de Datos
 -- Esquema relacional (modelo en estrella) para unificar:
---   - Precios de carburantes (Geoportal Gasolineras, Ministerio)
---   - Matriculaciones de vehículos (DGT)
--- Motor: PostgreSQL
+--   - Precios de carburantes por zona
+--   - Matriculaciones de vehículos
 -- =====================================================================
 
--- Limpieza (permite re-ejecutar el script sin errores)
+-- Elimina las tablas si existen
 DROP TABLE IF EXISTS fact_precios_carburante CASCADE;
 DROP TABLE IF EXISTS fact_matriculaciones CASCADE;
 DROP TABLE IF EXISTS dim_estacion CASCADE;
@@ -17,30 +16,27 @@ DROP TABLE IF EXISTS dim_tiempo CASCADE;
 
 -- ---------------------------------------------------------------------
 -- DIM_PROVINCIA
--- Solo 2 provincias en el alcance del ejercicio (Las Palmas / Sta. Cruz
--- de Tenerife). cod_provincia = código INE (35 / 38).
+-- Solo 2 provincias en el alcance del proyecto.
 -- ---------------------------------------------------------------------
 CREATE TABLE dim_provincia (
     cod_provincia       VARCHAR(2)  PRIMARY KEY,   -- '35' / '38' (código INE)
-    cod_provincia_dgt   VARCHAR(2)  NOT NULL,       -- 'GC' / 'TF' (código alfabético DGT)
+    cod_provincia_dgt   VARCHAR(2)  NOT NULL,       -- 'GC' / 'TF' (código DGT)
     nombre_provincia    VARCHAR(60) NOT NULL
 );
 
 COMMENT ON TABLE dim_provincia IS
   'Dimensión de provincia. Se mantienen ambos códigos (INE numérico y DGT alfabético) '
-  'porque cada fuente original usa un sistema distinto.';
+  'porque cada fuente de datos usa el suyo.';
 
 -- ---------------------------------------------------------------------
 -- DIM_MUNICIPIO
--- Clave canónica = código INE de municipio (de matriculaciones, fuente
--- autoritativa). Incluye el nombre "oficial" (abreviado, tal como lo usa
--- la DGT) y el nombre "largo" cuando se conoce (vía carburantes).
+-- Incluye los nombres de los municipios y sus códigos correspondientes.
 -- ---------------------------------------------------------------------
 CREATE TABLE dim_municipio (
     municipio_id        SERIAL       PRIMARY KEY,
-    cod_ine_municipio    VARCHAR(5)   UNIQUE,        -- código INE (5 dígitos), NULL si desconocido
-    nombre_municipio_dgt VARCHAR(30)  NOT NULL,       -- nombre tal como aparece en matriculaciones DGT
-    nombre_municipio_normalizado VARCHAR(60) NOT NULL, -- nombre usado para el cruce entre fuentes
+    cod_ine_municipio    VARCHAR(5)   UNIQUE,        
+    nombre_municipio_dgt VARCHAR(30)  NOT NULL,      -- Nombre tal como aparece en matriculaciones DGT
+    nombre_municipio_normalizado VARCHAR(60) NOT NULL, -- Nombre usado para el cruce entre fuentes
     cod_provincia        VARCHAR(2)   NOT NULL REFERENCES dim_provincia(cod_provincia)
 );
 
@@ -53,8 +49,8 @@ COMMENT ON TABLE dim_municipio IS
 
 -- ---------------------------------------------------------------------
 -- DIM_MUNICIPIO_ALIAS
--- Tabla de auditoría: documenta qué nombre "crudo" de cada fuente se
--- mapeó a qué municipio_id, para trazabilidad del proceso de unificación.
+-- Sirve para documentar el nombre original en la fuente de datos y para
+-- almacenar los id de cada uno.
 -- ---------------------------------------------------------------------
 CREATE TABLE dim_municipio_alias (
     alias_id       SERIAL      PRIMARY KEY,
@@ -65,7 +61,7 @@ CREATE TABLE dim_municipio_alias (
 
 -- ---------------------------------------------------------------------
 -- DIM_TIEMPO
--- Dimensión de fecha compartida por ambos hechos.
+-- Tabla de calendario.
 -- ---------------------------------------------------------------------
 CREATE TABLE dim_tiempo (
     fecha        DATE PRIMARY KEY,
@@ -78,10 +74,10 @@ CREATE TABLE dim_tiempo (
 
 -- ---------------------------------------------------------------------
 -- DIM_ESTACION
--- Una fila por estación de servicio (carburantes).
+-- Una fila por estación de servicio.
 -- ---------------------------------------------------------------------
 CREATE TABLE dim_estacion (
-    id_estacion    INTEGER      PRIMARY KEY,   -- IDEESS de la API
+    id_estacion    INTEGER      PRIMARY KEY,   -- ID de la fuente original.
     rotulo         VARCHAR(100),
     direccion      VARCHAR(200),
     horario        VARCHAR(100),
@@ -95,7 +91,7 @@ CREATE TABLE dim_estacion (
 
 -- ---------------------------------------------------------------------
 -- FACT_MATRICULACIONES
--- Grano: 1 fila = 1 vehículo matriculado.
+-- Almacena cada matriculación y los datos del vehículo correspondiente.
 -- ---------------------------------------------------------------------
 CREATE TABLE fact_matriculaciones (
     matriculacion_id      BIGSERIAL PRIMARY KEY,
@@ -119,8 +115,8 @@ CREATE INDEX idx_fact_mat_provincia ON fact_matriculaciones(cod_provincia);
 
 -- ---------------------------------------------------------------------
 -- FACT_PRECIOS_CARBURANTE
--- Grano: 1 fila = 1 estación x fecha de extracción (permite histórico si
--- el proceso de extracción se ejecuta periódicamente).
+-- Cada fila representa el precio de cada carburante de una gasolinera específica
+-- en una fevha concreta.
 -- ---------------------------------------------------------------------
 CREATE TABLE fact_precios_carburante (
     precio_id                BIGSERIAL PRIMARY KEY,

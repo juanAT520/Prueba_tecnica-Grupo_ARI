@@ -1,0 +1,15 @@
+# Entorno virtual
+venv/
+
+# Variables de entorno
+.env
+
+# Contenido de las carpetas de datos (manteniendo las carpetas)
+data/raw/*
+!data/raw/.gitkeep
+
+data/processed/*
+!data/processed/.gitkeep
+
+# Caché de Python
+scripts/__pycache__/

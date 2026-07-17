@@ -17,6 +17,11 @@ ofrecen mejores oportunidades comerciales.
 4. **Visualiza** los resultados en un dashboard de Power BI con KPIs,
    mapa, y un índice de oportunidad comercial por municipio.
 
+## Posibles mejoras futuras
+
+1. Dockerizar el proyecto.
+2. Mejorar el frontend y hacerlo un poco más cómodo de usar.
+
 ## Stack
 
 Python · PostgreSQL · Power BI Desktop · Flask (panel de control)
@@ -33,6 +38,11 @@ grupo_ari_analista_datos/
 ```
 
 ## Instalación
+
+Programas que deben estar instalados previamente: 
+1. Python 12+
+2. Power BI
+3. PostgreSQL
 
 ```powershell
 python -m venv venv

@@ -22,6 +22,29 @@ ofrecen mejores oportunidades comerciales.
 1. Dockerizar el proyecto.
 2. Mejorar el frontend y hacerlo un poco más cómodo de usar.
 
+## Justificación de la estructura y metodología de la base de datos
+
+Para empezar, he decidido usar Windows porque es la única forma realista
+de usar Power BI en un entorno empresarial.
+Para la base de datos he optado por usar PostgreSQL frente a las alternativas 
+por ser una aplicación Open Source, por tener un funcionamiento muy estable en
+Windows, y por su facilidad y rendimiento a la hora de trabajar en conjunto con
+Python. 
+Respecto al esquema elegido para la base de datos me he decidido por el 
+esquema de estrella porque, al ser la finalidad del proyecto el realizar
+un análisis de datos en un dashboard, es lo más eficiente y cómodo ya que es
+precisamente para lo que fue pensado y diseñado.
+En cuanto a la estructura de la base de datos he decidido tener dos tablas
+de hechos ('matriculaciones' y 'precios del carburante') porque el propósito
+del proyecto era evaluar el volumen de coches matriculados y los precios 
+medios del combustible. Unir ambas tablas habría resultado en duplicar mucha
+información y dado el volumen de datos con el que suelen trabajar, creí más 
+apropiado adoptar una postura más eficiente a la hora de plantear el proyecto.
+Las tablas de provincia, municipio y tiempo (el calendario) son las dimensiones
+que se encargan de conectar ambas tablas de hechos entre si y, dicho sea de paso,
+las que permiten responder a la pregunta planteada para la prueba. 
+
+
 ## Stack
 
 Python · PostgreSQL · Power BI Desktop · Flask (panel de control)

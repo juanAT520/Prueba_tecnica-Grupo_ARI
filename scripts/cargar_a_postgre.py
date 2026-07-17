@@ -34,30 +34,25 @@ from db_utils import (
 
 load_dotenv()
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DATOS_RAW = PROJECT_ROOT / "data" / "raw"
-DATOS_PROCESADOS = PROJECT_ROOT / "data" / "processed"
-RUTA_SQL = PROJECT_ROOT / "sql"
+RAIZ_DEL_PROYECTO = Path(__file__).resolve().parent.parent
+DATOS_RAW = RAIZ_DEL_PROYECTO / "data" / "raw"
+DATOS_PROCESADOS = RAIZ_DEL_PROYECTO / "data" / "processed"
+RUTA_SQL = RAIZ_DEL_PROYECTO / "sql"
 
 MATRICULACIONES_CSV = DATOS_PROCESADOS / "matriculaciones_canarias_2026.csv"
 
 
 def encontrar_csv_carburantes() -> Path:
     """
-    Busca el CSV de carburantes más reciente. obtener_datos_carburantes.py lo
-    guarda en data/raw/ con la fecha de extracción en el nombre
-    (carburantes_canarias_YYYYMMDD.csv); si además lo has copiado a
-    data/processed/, se prioriza esa copia.
+    Busca el CSV de carburantes más reciente en data/processed/
     """
-    csv_carburantes = sorted(DATOS_PROCESADOS.glob("carburantes_canarias_*.csv")) or sorted(
-        DATOS_RAW.glob("carburantes_canarias_*.csv")
-    )
-    if not csv_carburantes:
+    candidatos = sorted(DATOS_PROCESADOS.glob("carburantes_canarias_*.csv"))
+    if not candidatos:
         raise FileNotFoundError(
-            "No se encontró ningún carburantes_canarias_*.csv en data/raw ni data/processed. "
-            "Ejecuta scripts/extract_carburantes.py primero."
+            "No se encontró ningún carburantes_canarias_*.csv en data/processed. "
+            "Ejecuta scripts/obtener_datos_carburantes.py primero."
         )
-    return csv_carburantes[-1]  # Devuelve el archivo de carburantes más nuevo.
+    return candidatos[-1]
 
 
 def comprobar_base_de_datos():

@@ -1,8 +1,8 @@
 """
 transform_matriculaciones.py
 ------------------------------
-Analiza el fichero de matrículas (export_mensual_mat_YYYYMM.txt),
-aplicando el diseño de registro oficial que aparece en la documentacón de la DGT:
+Analiza todos los ficheros de matrículas (export_mensual_mat_YYYYMM.txt) que se encuentren en la carpeta 'raw'
+y aplica cambios y transformaciones tomando en cuenta la documentación oficial de la página de la DGT:
 
     https://sedeapl.dgt.gob.es/IEST_INTER/pdfs/disenoRegistro/vehiculos/matriculaciones/MATRICULACIONES_MATRABA.pdf
 
@@ -11,11 +11,7 @@ Filtra:
     - COD_PROVINCIA_MAT en ('GC', 'TF')
       GC = Las Palmas (cód. 35) / TF = Santa Cruz de Tenerife (cód. 38)
 
-Entrada:
-    Busca automáticamente todos los ficheros
-    data/raw/**/export_mensual_mat_*.txt  (o *.txt en data/raw directamente)
-
-Salida:
+Resultado:
     data/processed/matriculaciones_canarias_2026.csv
 """
 
@@ -23,13 +19,13 @@ from pathlib import Path
 
 import pandas as pd
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-RAW_DIR = PROJECT_ROOT / "data" / "raw"
-PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
-PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+RAIZ_DE_PRYECTO = Path(__file__).resolve().parent.parent
+CAARPETA_RAW = RAIZ_DE_PRYECTO / "data" / "raw"
+CARPETA_PROCESADOS = RAIZ_DE_PRYECTO / "data" / "processed"
+CARPETA_PROCESADOS.mkdir(parents=True, exist_ok=True)
 
 ANIO_OBJETIVO = 2026
-PROVINCIAS_MAT_OBJETIVO = {"GC", "TF"}  # Las Palmas / Sta. Cruz de Tenerife
+PROVINCIAS_OBJETIVO = {"GC", "TF"}  # Las Palmas / Sta. Cruz de Tenerife
 
 # ---------------------------------------------------------------------
 # Cada uno de los campos que aparecen en el fichero 'raw' de matriculaciones
@@ -107,8 +103,7 @@ CAMPOS = [
     ("FEC_PROCESO", 8),
 ]
 
-# Columnas que nos interesan para el análisis de negocio (el resto se
-# descarta tras el parseo para mantener el CSV manejable). Ajustable.
+# Columnas que nos interesan para el análisis de negocio.
 COLUMNAS_UTILES = [
     "FEC_MATRICULA",
     "COD_CLASE_MAT",
@@ -129,8 +124,11 @@ COLUMNAS_UTILES = [
 ]
 
 
-def build_colspecs(campos: list[tuple[str, int]]) -> tuple[list[tuple[int, int]], list[str]]:
-    """Convierte la lista (nombre, longitud) en colspecs [(inicio, fin), ...] para pandas."""
+def crear_colspecs(campos: list[tuple[str, int]]) -> tuple[list[tuple[int, int]], list[str]]:
+    """
+    Convierte toda la lista en colspecs asociando el número de caracteres fijo especificado
+    en la documentación.
+    """
     colspecs = []
     nombres = []
     pos = 0
@@ -142,14 +140,19 @@ def build_colspecs(campos: list[tuple[str, int]]) -> tuple[list[tuple[int, int]]
 
 
 def encontrar_ficheros() -> list[Path]:
-    ficheros = sorted(RAW_DIR.rglob("export_mensual_mat_*.txt"))
+    """ Busca los ficheros con el nombre esperado en la carpeta 'raw' """
+    ficheros = sorted(CAARPETA_RAW.rglob("export_mensual_mat_*.txt"))
     if not ficheros:
-        # fallback: cualquier .txt dentro de data/raw
-        ficheros = sorted(RAW_DIR.rglob("*.txt"))
+        raise FileNotFoundError(
+            "No se encontró ningún export_mensual_mat_*.txt en data/raw/. "
+            "Asegúrate de haber descomprimido el ZIP con descomprimir_matriculaciones.py"
+            "antes de continuar."
+        )
     return ficheros
 
 
 def parsear_fichero(path: Path, colspecs, nombres) -> pd.DataFrame:
+    """ Crea un data frame con los datos del colspec y la lista de nombres. """
     print(f"[INFO] Parseando: {path.name}")
     df = pd.read_fwf(
         path,
@@ -165,29 +168,24 @@ def parsear_fichero(path: Path, colspecs, nombres) -> pd.DataFrame:
 
 
 def filtrar_y_limpiar(df: pd.DataFrame) -> pd.DataFrame:
-    # FEC_MATRICULA viene como DDMMYYYY (texto de 8 caracteres)
+    """ Prepara todos los datos para poder subirlos a la 
+    base de Postgre """
+    
+    # Almacena el año, mes y día en columnas separadas para la tabla de calendario.
     df = df[df["FEC_MATRICULA"].str.len() == 8].copy()
     df["anio_matriculacion"] = df["FEC_MATRICULA"].str[4:8]
     df["mes_matriculacion"] = df["FEC_MATRICULA"].str[2:4]
     df["dia_matriculacion"] = df["FEC_MATRICULA"].str[0:2]
 
     df = df[df["anio_matriculacion"] == str(ANIO_OBJETIVO)]
-    df = df[df["COD_PROVINCIA_MAT"].isin(PROVINCIAS_MAT_OBJETIVO)]
-
-    # --- Filtro de calidad de datos adicional ---
-    # COD_PROVINCIA_MAT indica dónde se TRAMITÓ la matriculación, pero
-    # COD_PROVINCIA_VEH indica el domicilio REAL del vehículo/titular.
-    # Existen casos (flotas de renting/alquiler) donde la matriculación se
-    # tramita en Canarias pero el vehículo está domiciliado en la
-    # península (p.ej. Móstoles, Ferrol, Benalmádena). Como el objetivo del
-    # análisis es geográfico ("zonas de Canarias"), estos registros se
-    # excluyen: no representan volumen de mercado canario.
+    df = df[df["COD_PROVINCIA_MAT"].isin(PROVINCIAS_OBJETIVO)]
+            
     antes = len(df)
-    df = df[df["COD_PROVINCIA_VEH"].isin(PROVINCIAS_MAT_OBJETIVO)]
+    df = df[df["COD_PROVINCIA_VEH"].isin(PROVINCIAS_OBJETIVO)]
     excluidos = antes - len(df)
     if excluidos:
-        print(f"[INFO] Excluidos {excluidos} registros con vehículo domiciliado fuera de Canarias "
-              f"(matriculación tramitada en Canarias pero COD_PROVINCIA_VEH fuera de GC/TF, p.ej. flotas/renting)")
+        print(f"[INFO] Excluido el registro de un vehículo domiciliado fuera de Canarias "
+              f"(matriculación tramitada en Canarias pero COD_PROVINCIA_VEH fuera de GC/TF")
 
     print(f"[INFO] Registros tras filtro año={ANIO_OBJETIVO} y provincia GC/TF: {len(df)}")
 
@@ -215,12 +213,12 @@ def filtrar_y_limpiar(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def main():
-    colspecs, nombres = build_colspecs(CAMPOS)
+    colspecs, nombres = crear_colspecs(CAMPOS)
     ficheros = encontrar_ficheros()
 
     if not ficheros:
-        print(f"[ERROR] No se encontraron ficheros .txt en {RAW_DIR}. "
-              f"Asegúrate de haber descomprimido el ZIP con inspect_matriculaciones.py primero.")
+        print(f"[ERROR] No se encontraron ficheros .txt en {CAARPETA_RAW}. "
+              f"Asegúrate de haber descomprimido el ZIP con descomprimir_matriculaciones.py primero.")
         return
 
     dfs = []
@@ -232,7 +230,7 @@ def main():
     df_final = pd.concat(dfs, ignore_index=True)
     df_final = df_final.drop_duplicates()
 
-    out_path = PROCESSED_DIR / "matriculaciones_canarias_2026.csv"
+    out_path = CARPETA_PROCESADOS / "matriculaciones_canarias_2026.csv"
     df_final.to_csv(out_path, index=False, encoding="utf-8-sig")
 
     print(f"\n[OK] CSV final guardado en: {out_path}")

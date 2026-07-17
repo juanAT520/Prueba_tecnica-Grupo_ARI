@@ -73,6 +73,9 @@ CARPETA_RAW = RAIZ_DE_PROYECTO / os.getenv("DATA_RAW_DIR", "data/raw")
 # Si la carpeta 'raw' no existe, la crea.
 CARPETA_RAW.mkdir(parents=True, exist_ok=True)
 
+CARPETA_PROCESSED = RAIZ_DE_PROYECTO / os.getenv("DATA_PROCESSED_DIR", "data/processed")
+CARPETA_PROCESSED.mkdir(parents=True, exist_ok=True)
+
 
 def obtener_datos_carburantes(url: str = API_URL, intentos: int = 4) -> dict:
     """Llama a la API y devuelve el JSON crudo. Tiene control de errores
@@ -187,7 +190,7 @@ def main():
     df_canarias = filtrar_canarias(datos_sin_procesar)
     df_canarias = limpiar_columnas(df_canarias)
 
-    csv_path = CARPETA_RAW / f"carburantes_canarias_{hoy}.csv"
+    csv_path = CARPETA_PROCESSED / f"carburantes_canarias_{hoy}.csv"
     df_canarias.to_csv(csv_path, index=False, encoding="utf-8-sig")
     print(f"[OK] CSV filtrado (Canarias) guardado en: {csv_path}")
     print(df_canarias.head())
